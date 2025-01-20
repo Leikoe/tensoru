@@ -12,15 +12,21 @@ mod utils;
 #[cfg(test)]
 mod tests {
     use crate::{
-        backends::cpu::CpuDevice,
+        backends::{cpu::CpuDevice, metal::MetalDevice},
         op::{Add, BinaryOp},
         tensor::Tensor,
     };
 
     #[test]
     fn zeros() {
-        let a: Tensor<1, f64, CpuDevice> = Tensor::zeros([3]);
+        let a: Tensor<1, f64, MetalDevice> = Tensor::zeros([3]);
         assert_eq!(a.to_vec(), vec![0.; 3]);
+    }
+
+    #[test]
+    fn ones() {
+        let a: Tensor<1, f64, MetalDevice> = Tensor::from_slice([3], &[1., 1., 1.]);
+        assert_eq!(a.to_vec(), vec![1.; 3]);
     }
 
     #[test]
