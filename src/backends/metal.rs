@@ -1,27 +1,40 @@
 use metal::{
     foreign_types::ForeignType, Buffer as RawBuffer, Device as RawDevice, MTLResourceOptions,
 };
-use std::alloc::AllocError;
+use std::{alloc::AllocError, sync::Arc};
 
 use crate::{
     allocator::{Allocator, Buffer},
     dtype::DType,
 };
 
+use super::Device;
+
 pub struct MetalDevice {
-    raw_device: RawDevice,
+    raw_device: Arc<RawDevice>,
 }
 
 impl Default for MetalDevice {
     fn default() -> Self {
         Self {
-            raw_device: RawDevice::system_default()
-                .expect("couldn't get system's default METAL device"),
+            raw_device: Arc::new(
+                RawDevice::system_default().expect("couldn't get system's default METAL device"),
+            ),
         }
     }
 }
 
-struct MetalBuffer<Dtype: DType> {
+impl Device for MetalDevice {
+    type Allocator = MetalAllocator;
+
+    fn allocator(&self) -> Self::Allocator {
+        MetalAllocator {
+            device: self.raw_device.clone(),
+        }
+    }
+}
+
+pub struct MetalBuffer<Dtype: DType> {
     raw_buffer: RawBuffer,
     slice: &'static mut [Dtype],
 }
@@ -38,11 +51,11 @@ impl<Dtype: DType> Buffer<Dtype> for MetalBuffer<Dtype> {
     }
 }
 
-struct MetalAllocator {
-    device: RawDevice,
+pub struct MetalAllocator {
+    device: Arc<RawDevice>,
 }
 
-unsafe impl Allocator for MetalAllocator {
+impl Allocator for MetalAllocator {
     type Buffer<Dtype: DType> = MetalBuffer<Dtype>;
 
     fn alloc<Dtype: DType>(&self, size: usize) -> Result<Self::Buffer<Dtype>, AllocError> {
@@ -61,7 +74,7 @@ unsafe impl Allocator for MetalAllocator {
         Ok(MetalBuffer { raw_buffer, slice })
     }
 
-    fn free<Dtype: DType>(&self, b: Self::Buffer<Dtype>) {
+    unsafe fn free<Dtype: DType>(&self, b: Self::Buffer<Dtype>) {
         drop(b.raw_buffer) // explicit drop, hopefully release on drop :joy:
     }
 }
@@ -70,23 +83,20 @@ unsafe impl Allocator for MetalAllocator {
 mod test {
     use std::usize;
 
-    use crate::allocator::Allocator;
-
-    use super::{MetalAllocator, RawDevice};
+    use crate::{
+        allocator::Allocator,
+        backends::{metal::MetalDevice, Device},
+    };
 
     #[test]
     fn oom() {
-        let allocator = MetalAllocator {
-            device: RawDevice::system_default().unwrap(),
-        };
+        let allocator = MetalDevice::default().allocator();
         assert!(allocator.alloc::<u8>(usize::MAX).is_err());
     }
 
     #[test]
     fn simple() {
-        let allocator = MetalAllocator {
-            device: RawDevice::system_default().unwrap(),
-        };
+        let allocator = MetalDevice::default().allocator();
         let _ = allocator.alloc::<f64>(16).unwrap();
     }
 }
