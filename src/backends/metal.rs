@@ -8,9 +8,18 @@ use crate::{
     dtype::DType,
 };
 
-// pub struct MetalDevice {
-//     raw_device: Device,
-// }
+pub struct MetalDevice {
+    raw_device: RawDevice,
+}
+
+impl Default for MetalDevice {
+    fn default() -> Self {
+        Self {
+            raw_device: RawDevice::system_default()
+                .expect("couldn't get system's default METAL device"),
+        }
+    }
+}
 
 struct MetalBuffer<Dtype: DType> {
     raw_buffer: RawBuffer,
