@@ -1,4 +1,7 @@
 #![feature(f16)]
+#![feature(allocator_api)]
+mod allocator;
+mod backends;
 mod compute_graph;
 pub mod dtype;
 pub mod op;
@@ -8,6 +11,9 @@ mod utils;
 #[cfg(test)]
 mod tests {
     use crate::tensor::Tensor;
+
+    #[test]
+    fn playground() {}
 
     #[test]
     fn add_to_zeros() {
