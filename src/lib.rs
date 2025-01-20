@@ -11,24 +11,31 @@ mod utils;
 
 #[cfg(test)]
 mod tests {
-    // use crate::tensor::Tensor;
+    use crate::{
+        backends::cpu::CpuDevice,
+        op::{Add, BinaryOp},
+        tensor::Tensor,
+    };
 
-    // #[test]
-    // fn playground() {}
+    #[test]
+    fn zeros() {
+        let a: Tensor<1, f64, CpuDevice> = Tensor::zeros([3]);
+        assert_eq!(a.to_vec(), vec![0.; 3]);
+    }
 
-    // #[test]
-    // fn add_to_zeros() {
-    //     let a: Tensor<1, f64> = Tensor::zeros([3]);
-    //     let b: Tensor<1, f64> = Tensor::with_data([3], vec![1., 2., 3.]);
-    //     let result = a + b;
-    //     assert_eq!(result.to_vec(), vec![1., 2., 3.]);
-    // }
+    #[test]
+    fn add_to_zeros() {
+        let a: Tensor<1, f64, CpuDevice> = Tensor::zeros([3]);
+        let b: Tensor<1, f64, CpuDevice> = Tensor::from_slice([3], &[1., 2., 3.]);
+        let result = Add::forward(a, b);
+        assert_eq!(result.to_vec(), vec![1., 2., 3.]);
+    }
 
-    // #[test]
-    // fn add_zeros() {
-    //     let b: Tensor<1, f64> = Tensor::with_data([3], vec![1., 2., 3.]);
-    //     let a: Tensor<1, f64> = Tensor::zeros([3]);
-    //     let result = a + b;
-    //     assert_eq!(result.to_vec(), vec![1., 2., 3.]);
-    // }
+    #[test]
+    fn add_zeros() {
+        let b: Tensor<1, f64, CpuDevice> = Tensor::from_slice([3], &[1., 2., 3.]);
+        let a: Tensor<1, f64, CpuDevice> = Tensor::zeros([3]);
+        let result = Add::forward(a, b);
+        assert_eq!(result.to_vec(), vec![1., 2., 3.]);
+    }
 }
