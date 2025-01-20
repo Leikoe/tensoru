@@ -8,10 +8,34 @@ pub trait DType:
     + Div<Self, Output = Self>
     + Copy
     + Clone
+    + 'static
 {
     fn zero() -> Self;
 }
 
+// INTS
+impl DType for u8 {
+    fn zero() -> Self {
+        0
+    }
+}
+impl DType for u16 {
+    fn zero() -> Self {
+        0
+    }
+}
+impl DType for u32 {
+    fn zero() -> Self {
+        0
+    }
+}
+impl DType for u64 {
+    fn zero() -> Self {
+        0
+    }
+}
+
+// FLOATS
 impl DType for f16 {
     fn zero() -> Self {
         0.

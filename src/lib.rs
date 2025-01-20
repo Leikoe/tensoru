@@ -1,5 +1,6 @@
 #![feature(f16)]
 #![feature(allocator_api)]
+#![allow(refining_impl_trait)]
 mod allocator;
 mod backends;
 mod compute_graph;
