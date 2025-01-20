@@ -5,9 +5,9 @@ use crate::{
 
 use super::Device;
 
-struct Cpu;
+pub struct CpuDevice;
 
-impl Device for Cpu {
+impl Device for CpuDevice {
     type Allocator = CpuAllocator;
 
     fn allocator(&self) -> Self::Allocator {
@@ -27,7 +27,7 @@ impl<Dtype: DType> Buffer<Dtype> for Box<[Dtype]> {
     }
 }
 
-struct CpuAllocator;
+pub struct CpuAllocator;
 
 impl Allocator for CpuAllocator {
     type Buffer<Dtype: DType> = Box<[Dtype]>;
@@ -53,18 +53,18 @@ mod test {
 
     use crate::{
         allocator::Allocator,
-        backends::{cpu::Cpu, Device},
+        backends::{cpu::CpuDevice, Device},
     };
 
     #[test]
     fn oom() {
-        let allocator = Cpu.allocator();
+        let allocator = CpuDevice.allocator();
         assert!(allocator.alloc::<u8>(usize::MAX).is_err());
     }
 
     #[test]
     fn simple() {
-        let allocator = Cpu.allocator();
+        let allocator = CpuDevice.allocator();
         let _ = allocator.alloc::<f64>(16).unwrap();
     }
 }
