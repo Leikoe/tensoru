@@ -1,19 +1,19 @@
+use super::Device;
 use crate::{
     allocator::{Allocator, Buffer},
     dtype::DType,
 };
-
-use super::{Device, HasAllocator};
+use std::fmt::Debug;
 
 pub struct CpuDevice;
 
-impl HasAllocator for CpuDevice {
-    type Allocator<'device> = CpuAllocator;
+impl Device for CpuDevice {
+    type Allocator = CpuAllocator;
 }
 
-impl Device for CpuDevice {
-    fn allocator(&self) -> Self::Allocator<'static> {
-        CpuAllocator
+impl Debug for CpuDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CPU")
     }
 }
 
@@ -39,42 +39,33 @@ impl<Dtype: DType> Buffer<Dtype> for CpuBuffer<Dtype> {
 
 pub struct CpuAllocator;
 
-impl<'device> Allocator<'device> for CpuAllocator {
+impl Allocator for CpuAllocator {
     type Buffer<Dtype: DType> = CpuBuffer<Dtype>;
 
-    fn alloc<Dtype: crate::dtype::DType>(
-        &self,
-        size: usize,
-    ) -> Result<Self::Buffer<Dtype>, std::alloc::AllocError> {
+    fn alloc<Dtype: DType>(size: usize) -> Result<Self::Buffer<Dtype>, std::alloc::AllocError> {
         // SAFETY: data has to be copied in the [`Bufffer`] before using it
         let raw_buffer: Box<[Dtype]> =
             unsafe { Box::<[Dtype]>::try_new_uninit_slice(size)?.assume_init() };
         Ok(CpuBuffer { raw_buffer })
     }
 
-    unsafe fn free<Dtype: crate::dtype::DType>(&self, b: Self::Buffer<Dtype>) {
+    unsafe fn free<Dtype: DType>(b: Self::Buffer<Dtype>) {
         drop(b); // explicit drop
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::{allocator::Allocator, backends::cpu::CpuAllocator};
     use std::usize;
-
-    use crate::{
-        allocator::Allocator,
-        backends::{cpu::CpuDevice, Device},
-    };
 
     #[test]
     fn oom() {
-        let allocator = CpuDevice.allocator();
-        assert!(allocator.alloc::<u8>(usize::MAX).is_err());
+        assert!(CpuAllocator::alloc::<u8>(usize::MAX).is_err());
     }
 
     #[test]
     fn simple() {
-        let allocator = CpuDevice.allocator();
-        let _ = allocator.alloc::<f64>(16).unwrap();
+        let _ = CpuAllocator::alloc::<f64>(16).unwrap();
     }
 }

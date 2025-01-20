@@ -1,13 +1,10 @@
 use crate::allocator::Allocator;
+use std::fmt::Debug;
 
 pub mod cpu;
 #[cfg(target_os = "macos")]
 pub mod metal;
 
-trait HasAllocator {
-    type Allocator<'device>: Allocator<'device>;
-}
-
-pub trait Device: HasAllocator {
-    fn allocator(&self) -> Self::Allocator<'_>;
+pub trait Device: Debug {
+    type Allocator: Allocator;
 }

@@ -1,13 +1,11 @@
-use crate::backends::cpu::CpuDevice;
-use crate::backends::Device;
 use crate::dtype::DType;
 use std::alloc::AllocError;
 use std::fmt::Debug;
 
-pub trait Allocator<'device> {
+pub trait Allocator {
     type Buffer<Dtype: DType>: Buffer<Dtype>;
-    fn alloc<Dtype: DType>(&self, size: usize) -> Result<Self::Buffer<Dtype>, AllocError>;
-    unsafe fn free<Dtype: DType>(&self, b: Self::Buffer<Dtype>);
+    fn alloc<Dtype: DType>(size: usize) -> Result<Self::Buffer<Dtype>, AllocError>;
+    unsafe fn free<Dtype: DType>(b: Self::Buffer<Dtype>);
 }
 
 pub trait Buffer<Dtype: DType>: Debug + Clone {
