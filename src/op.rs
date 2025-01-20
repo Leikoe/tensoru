@@ -13,14 +13,14 @@ pub struct Add;
 impl BinaryOp for Add {
     fn forward<const N: usize, D: DType>(a: Tensor<N, D>, b: Tensor<N, D>) -> Tensor<N, D> {
         assert!(a.shape == b.shape);
-        Tensor {
-            shape: a.shape,
-            data: a
-                .data
+
+        Tensor::with_data(
+            a.shape,
+            a.to_vec()
                 .into_iter()
-                .zip(b.data.into_iter())
+                .zip(b.to_vec().into_iter())
                 .map(|(a, b)| a + b)
                 .collect(),
-        }
+        )
     }
 }

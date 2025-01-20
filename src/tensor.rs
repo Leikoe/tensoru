@@ -1,9 +1,32 @@
-use crate::{dtype::DType, utils::Prod};
+use crate::{
+    compute_graph::{Op, Value},
+    dtype::DType,
+    utils::Prod,
+};
+use std::ops::Add;
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum TensorData<const N: usize, Dtype: DType> {
+    Evaluated(Vec<Dtype>),
+    Lazy(Value<N, Dtype>),
+}
+
+fn new_lazy_data<const N: usize, Dtype: DType>(
+    graph: Value<N, Dtype>,
+) -> Box<TensorData<N, Dtype>> {
+    Box::new(TensorData::Lazy(graph))
+}
+
+impl<const N: usize, Dtype: DType> From<Vec<Dtype>> for Box<TensorData<N, Dtype>> {
+    fn from(value: Vec<Dtype>) -> Self {
+        Box::new(TensorData::Evaluated(value))
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tensor<const N: usize, Dtype: DType> {
     pub shape: [usize; N],
-    pub data: Vec<Dtype>,
+    data: Box<TensorData<N, Dtype>>,
 }
 
 impl<const N: usize, Dtype: DType> Tensor<N, Dtype> {
@@ -12,7 +35,7 @@ impl<const N: usize, Dtype: DType> Tensor<N, Dtype> {
         assert_ne!(numel, 0, "cannot create a zero sized tensor");
         Tensor {
             shape,
-            data: vec![Dtype::zero(); shape.prod()],
+            data: vec![Dtype::zero(); shape.prod()].into(),
         }
     }
 
@@ -23,7 +46,10 @@ impl<const N: usize, Dtype: DType> Tensor<N, Dtype> {
             numel,
             "provided data isn't the right size for given shape"
         );
-        Tensor { shape, data }
+        Tensor {
+            shape,
+            data: data.into(),
+        }
     }
 
     pub fn from_slice(shape: [usize; N], data: &[Dtype]) -> Tensor<N, Dtype> {
@@ -35,7 +61,34 @@ impl<const N: usize, Dtype: DType> Tensor<N, Dtype> {
         );
         Tensor {
             shape,
-            data: data.to_vec(),
+            data: data.to_vec().into(),
+        }
+    }
+
+    pub fn to_vec(&self) -> Vec<Dtype> {
+        match self.data.as_ref() {
+            TensorData::Evaluated(vec) => vec.clone(),
+            TensorData::Lazy(value) => {
+                if let TensorData::Evaluated(v) = value.eval_cpu().data.as_ref() {
+                    v.clone()
+                } else {
+                    unreachable!();
+                }
+            }
+        }
+    }
+}
+
+impl<const N: usize, Dtype: DType> Add<Tensor<N, Dtype>> for Tensor<N, Dtype> {
+    type Output = Self;
+
+    fn add(self, rhs: Tensor<N, Dtype>) -> Self::Output {
+        assert_eq!(self.shape, rhs.shape);
+        let self_shape = self.shape;
+        let addition = Box::new(Op::Addition(Value::Const(self), Value::Const(rhs)));
+        Tensor {
+            shape: self_shape,
+            data: new_lazy_data(Value::Op(addition)),
         }
     }
 }
