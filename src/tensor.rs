@@ -1,6 +1,6 @@
 use crate::{dtype::DType, utils::Prod};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tensor<const N: usize, Dtype: DType> {
     pub shape: [usize; N],
     pub data: Vec<Dtype>,
