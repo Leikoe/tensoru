@@ -1,14 +1,14 @@
 use metal::{
     foreign_types::ForeignType, Buffer as RawBuffer, Device as RawDevice, MTLResourceOptions,
 };
-use std::{alloc::AllocError, sync::Arc};
+use std::{alloc::AllocError, fmt::Debug, sync::Arc};
 
 use crate::{
     allocator::{Allocator, Buffer},
     dtype::DType,
 };
 
-use super::Device;
+use super::{cpu::CpuDevice, Device, HasAllocator};
 
 pub struct MetalDevice {
     raw_device: Arc<RawDevice>,
@@ -24,22 +24,36 @@ impl Default for MetalDevice {
     }
 }
 
-impl Device for MetalDevice {
-    type Allocator = MetalAllocator;
+impl HasAllocator for MetalDevice {
+    type Allocator<'device> = MetalAllocator<'device>;
+}
 
-    fn allocator(&self) -> Self::Allocator {
-        MetalAllocator {
-            device: self.raw_device.clone(),
-        }
+impl Device for MetalDevice {
+    fn allocator(&self) -> Self::Allocator<'_> {
+        MetalAllocator { device: self }
     }
 }
 
-pub struct MetalBuffer<Dtype: DType> {
+pub struct MetalBuffer<'device, Dtype: DType> {
     raw_buffer: RawBuffer,
     slice: &'static mut [Dtype],
+    device: &'device MetalDevice,
 }
 
-impl<Dtype: DType> Buffer<Dtype> for MetalBuffer<Dtype> {
+impl<'device, Dtype: DType> Debug for MetalBuffer<'device, Dtype> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // SAFETY: we are copying the data in it right after
+        let mut v = unsafe { Box::new_uninit_slice(self.len()).assume_init() };
+        self.copy_out(&mut v[..]);
+        v.fmt(f)
+    }
+}
+
+impl<'device, Dtype: DType> Buffer<Dtype> for MetalBuffer<'device, Dtype> {
+    fn len(&self) -> usize {
+        self.slice.len()
+    }
+
     fn copy_in(&mut self, src: &[Dtype]) {
         assert_eq!(self.slice.len(), src.len());
         self.slice.copy_from_slice(src);
@@ -51,15 +65,24 @@ impl<Dtype: DType> Buffer<Dtype> for MetalBuffer<Dtype> {
     }
 }
 
-pub struct MetalAllocator {
-    device: Arc<RawDevice>,
+impl<'device, Dtype: DType> Clone for MetalBuffer<'device, Dtype> {
+    fn clone(&self) -> Self {
+        self.device
+            .allocator()
+            .alloc::<Dtype>(self.len())
+            .expect("couldn't alloc while cloning METAL buffer")
+    }
 }
 
-impl Allocator for MetalAllocator {
-    type Buffer<Dtype: DType> = MetalBuffer<Dtype>;
+pub struct MetalAllocator<'device> {
+    device: &'device MetalDevice,
+}
+
+impl<'device> Allocator<'device> for MetalAllocator<'device> {
+    type Buffer<Dtype: DType> = MetalBuffer<'device, Dtype>;
 
     fn alloc<Dtype: DType>(&self, size: usize) -> Result<Self::Buffer<Dtype>, AllocError> {
-        let raw_buffer = self.device.new_buffer(
+        let raw_buffer = self.device.raw_device.new_buffer(
             (size * std::mem::size_of::<Dtype>()) as u64,
             MTLResourceOptions::StorageModeShared,
         );
@@ -71,7 +94,11 @@ impl Allocator for MetalAllocator {
         let slice = unsafe {
             std::slice::from_raw_parts_mut::<Dtype>(raw_buffer.contents() as *mut Dtype, size)
         };
-        Ok(MetalBuffer { raw_buffer, slice })
+        Ok(MetalBuffer {
+            raw_buffer,
+            slice,
+            device: self.device,
+        })
     }
 
     unsafe fn free<Dtype: DType>(&self, b: Self::Buffer<Dtype>) {
@@ -90,13 +117,15 @@ mod test {
 
     #[test]
     fn oom() {
-        let allocator = MetalDevice::default().allocator();
+        let device = MetalDevice::default();
+        let allocator = device.allocator();
         assert!(allocator.alloc::<u8>(usize::MAX).is_err());
     }
 
     #[test]
     fn simple() {
-        let allocator = MetalDevice::default().allocator();
+        let device = MetalDevice::default();
+        let allocator = device.allocator();
         let _ = allocator.alloc::<f64>(16).unwrap();
     }
 }

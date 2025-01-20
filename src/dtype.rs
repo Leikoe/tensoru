@@ -1,4 +1,7 @@
-use std::ops::{Add, Div, Mul, Sub};
+use std::{
+    fmt::Debug,
+    ops::{Add, Div, Mul, Sub},
+};
 
 pub trait DType:
     Sized
@@ -8,6 +11,7 @@ pub trait DType:
     + Div<Self, Output = Self>
     + Copy
     + Clone
+    + Debug
     + 'static
 {
     fn zero() -> Self;
