@@ -1,9 +1,12 @@
 use crate::{buffer::Buffer, dtype::DType};
 use std::fmt::Debug;
 
-pub mod cpu;
+mod cpu;
+pub use cpu::CpuDevice;
+
 #[cfg(target_os = "macos")]
-pub mod metal;
+mod metal;
+pub use metal::MetalDevice;
 
 pub trait Device: Debug {
     type Buffer<Dtype: DType>: Buffer<Dtype>;

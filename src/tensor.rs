@@ -1,5 +1,5 @@
 use crate::{
-    backends::{cpu::CpuDevice, Device},
+    backends::{CpuDevice, Device},
     buffer::Buffer,
     // compute_graph::{Op, Value},
     dtype::DType,

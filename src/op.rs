@@ -1,4 +1,4 @@
-use crate::{backends::cpu::CpuDevice, dtype::DType, tensor::Tensor};
+use crate::{backends::CpuDevice, dtype::DType, tensor::Tensor};
 
 pub trait BinaryOp {
     fn forward<const N: usize, D: DType>(

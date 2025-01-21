@@ -1,18 +1,20 @@
 #![feature(f16)]
 #![feature(allocator_api)]
 #![allow(refining_impl_trait)]
-mod backends;
+pub mod backends;
 mod buffer;
 mod compute_graph;
 pub mod dtype;
 pub mod op;
-pub mod tensor;
+mod tensor;
 mod utils;
+
+pub use tensor::Tensor;
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        backends::{cpu::CpuDevice, metal::MetalDevice},
+        backends::{CpuDevice, MetalDevice},
         op::{Add, BinaryOp},
         tensor::Tensor,
     };
