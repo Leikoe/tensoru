@@ -96,17 +96,31 @@ impl Allocator for MetalAllocator {
 
 #[cfg(test)]
 mod test {
-    use std::usize;
+    use std::{thread, time::Duration, usize};
 
     use crate::{allocator::Allocator, backends::metal::MetalAllocator};
 
+    use super::RAW_DEVICE;
+
     #[test]
-    fn oom() {
+    fn test_oom() {
         assert!(MetalAllocator::alloc::<u8>(usize::MAX).is_err());
     }
 
     #[test]
-    fn simple() {
+    fn test_simple() {
         let _ = MetalAllocator::alloc::<f64>(16).unwrap();
+    }
+
+    #[test]
+    fn test_free() {
+        let before = RAW_DEVICE.lock().unwrap().current_allocated_size();
+        let buff = MetalAllocator::alloc::<f64>(1).unwrap();
+        let after = RAW_DEVICE.lock().unwrap().current_allocated_size();
+        assert!(before < after);
+        unsafe { MetalAllocator::free(buff) };
+        thread::sleep(Duration::from_millis(50)); // wait for real dealloc on device
+        let after_free = RAW_DEVICE.lock().unwrap().current_allocated_size();
+        assert_eq!(after_free, before);
     }
 }
