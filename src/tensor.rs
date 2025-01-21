@@ -100,7 +100,7 @@ mod test {
         let r = a + b;
         if let TensorData::Lazy(v) = r.data {
             if let Value::Op(o) = *v {
-                if let Op::Addition(a, b) = *o {
+                if let Op::Addition(_, _) = *o {
                     return;
                 }
             }
