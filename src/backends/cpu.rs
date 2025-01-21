@@ -1,3 +1,5 @@
+use tracing::debug;
+
 use super::Device;
 use crate::{buffer::Buffer, dtype::DType};
 use std::{any::type_name, fmt::Debug};
@@ -21,7 +23,11 @@ pub struct CpuBuffer<Dtype: DType> {
 
 impl<Dtype: DType> Drop for CpuBuffer<Dtype> {
     fn drop(&mut self) {
-        println!("DEBUG: dropped {}(len={})", type_name::<Self>(), self.len());
+        debug!(
+            "dropped {}(len={})",
+            type_name::<Self>().split("::").last().unwrap(),
+            self.len()
+        );
     }
 }
 

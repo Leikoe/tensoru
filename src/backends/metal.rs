@@ -9,6 +9,7 @@ use std::{
     fmt::Debug,
     sync::{LazyLock, Mutex},
 };
+use tracing::debug;
 
 static RAW_DEVICE: LazyLock<Mutex<RawDevice>> = LazyLock::new(|| {
     Mutex::new(RawDevice::system_default().expect("couldn't get system's default METAL device"))
@@ -42,7 +43,11 @@ impl<Dtype: DType> Debug for MetalBuffer<Dtype> {
 
 impl<Dtype: DType> Drop for MetalBuffer<Dtype> {
     fn drop(&mut self) {
-        println!("DEBUG: dropped {}(len={})", type_name::<Self>(), self.len());
+        debug!(
+            "dropped {}(len={})",
+            type_name::<Self>().split("::").last().unwrap(),
+            self.len()
+        );
     }
 }
 
@@ -96,24 +101,29 @@ impl<'device, Dtype: DType> Clone for MetalBuffer<Dtype> {
 mod test {
     use std::{thread, time::Duration, usize};
 
+    use tracing_test::traced_test;
+
     use crate::{backends::metal::MetalBuffer, buffer::Buffer};
 
     use super::RAW_DEVICE;
 
     #[test]
+    #[traced_test]
     fn test_oom() {
         assert!(MetalBuffer::<u8>::new(usize::MAX).is_err());
     }
 
     #[test]
+    #[traced_test]
     fn test_simple() {
         let _ = MetalBuffer::<f64>::new(16).unwrap();
     }
 
     #[test]
+    #[traced_test]
     fn test_free() {
         let before = RAW_DEVICE.lock().unwrap().current_allocated_size();
-        let buff = MetalBuffer::<f64>::new(16_000).unwrap();
+        let buff = MetalBuffer::<f64>::new(10_usize.pow(9)).unwrap();
         let after = RAW_DEVICE.lock().unwrap().current_allocated_size();
         assert!(before < after);
         drop(buff);
