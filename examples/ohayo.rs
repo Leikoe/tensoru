@@ -17,4 +17,14 @@ fn main() {
 
     // Create a zero intialized tensor by using [`Tensor::zeros`].
     let _zero_tensor = Tensor::<f32, CpuDevice>::zeros(&scalar_shape);
+
+    // Create a tensor from a slice using [`Tensor::from_slice`]
+    let a = Tensor::<f64, CpuDevice>::from_slice(&[3], &[1., 2., 3.]);
+    let b = Tensor::<f64, CpuDevice>::from_slice(&[3], &[3., 2., 1.]);
+
+    // Numeric ops work !
+    let r = a + b;
+
+    // We can inspect the generated compute graph using the debug print
+    dbg!(r);
 }
