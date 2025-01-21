@@ -89,7 +89,9 @@ impl<Dtype: DType, D: Device> Add<Tensor<Dtype, D>> for Tensor<Dtype, D> {
 
 #[cfg(test)]
 mod test {
-    use crate::{backends::CpuDevice, compute_graph::Op};
+    use std::collections::HashMap;
+
+    use crate::{backends::CpuDevice, compute_graph::Op, utils::toposort};
 
     use super::{Tensor, TensorData, Value};
 
