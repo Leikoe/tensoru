@@ -1,14 +1,10 @@
-// use crate::{
-//     backends::Device,
-//     dtype::DType,
-//     op::{Add, BinaryOp},
-//     tensor::Tensor,
-// };
+use crate::{backends::Device, dtype::DType, tensor::Tensor};
 
-// #[derive(Debug, PartialEq, Eq, Clone)]
-// pub enum Op<const N: usize, Dtype: DType> {
-//     Addition(Value<N, Dtype>, Value<N, Dtype>),
-// }
+#[derive(Debug, Clone)]
+pub enum Op<Dtype: DType, D: Device> {
+    Addition(Value<Dtype, D>, Value<Dtype, D>),
+    Substraction(Value<Dtype, D>, Value<Dtype, D>),
+}
 
 // impl<const N: usize, Dtype: DType> Op<N, Dtype> {
 //     fn eval_cpu(&self) -> Tensor<N, Dtype> {
@@ -18,38 +14,33 @@
 //     }
 // }
 
-// #[derive(Debug, PartialEq, Eq, Clone)]
-// pub enum Value<const N: usize, Dtype: DType, D: Device> {
-//     Op(Box<Op<N, Dtype>>),
-//     Const(Tensor<N, Dtype, D>),
-//     ConstScalar(Dtype),
+#[derive(Debug, Clone)]
+pub enum Value<Dtype: DType, D: Device> {
+    Op(Box<Op<Dtype, D>>),
+    Const(Tensor<Dtype, D>),
+    ConstScalar(Dtype),
+}
+
+// impl<Dtype: DType, D: Device> Value<Dtype, D> {
+// fn const_scalar(v: Dtype) -> Value<Dtype> {
+//     Value::ConstScalar(v)
 // }
 
-// impl<const N: usize, Dtype: DType, D: Device> Value<N, Dtype, D> {
-//     fn const_scalar(v: Dtype) -> Value<N, Dtype> {
-//         Value::ConstScalar(v)
+// pub fn eval_cpu(&self) -> Tensor<Dtype, D> {
+//     match self {
+//         Value::Op(op) => op.eval_cpu(),
+//         Value::Const(tensor) => tensor.clone(),
+//         Value::ConstScalar(s) => Tensor::from_slice([1; N], &[*s; 1]),
 //     }
-
-//     pub fn eval_cpu(&self) -> Tensor<N, Dtype, D> {
-//         match self {
-//             Value::Op(op) => op.eval_cpu(),
-//             Value::Const(tensor) => tensor.clone(),
-//             Value::ConstScalar(s) => Tensor::from_slice([1; N], &[*s; 1]),
-//         }
-//     }
+// }
 // }
 
 // #[cfg(test)]
 // mod test {
-//     use super::*;
+//     use super::Value;
 
 //     #[test]
-//     fn simple_graph() {
-//         let graph = Value::Op(Box::new(Op::Addition(
-//             Value::<1, f64>::const_scalar(1.),
-//             Value::<1, f64>::const_scalar(2.),
-//         )));
-
-//         assert_eq!(graph.eval_cpu(), Tensor::from_slice([1], &[3.]));
+//     fn test_simple_graph() {
+//         let g = Value::Op()
 //     }
 // }

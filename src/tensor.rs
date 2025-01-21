@@ -1,54 +1,36 @@
 use crate::{
-    backends::{CpuDevice, Device},
+    backends::Device,
     buffer::Buffer,
-    // compute_graph::{Op, Value},
+    compute_graph::{Op, Value},
     dtype::DType,
     utils::Prod,
 };
-use std::ops::Add;
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, ops::Add};
 
-pub enum TensorData<const N: usize, Dtype: DType, D: Device> {
+#[derive(Debug, Clone)]
+pub enum TensorData<Dtype: DType, D: Device> {
     Evaluated(D::Buffer<Dtype>),
-    // Lazy(Box<Value<N, Dtype>>),
-}
-
-impl<const N: usize, Dtype: DType, D: Device> Debug for TensorData<N, Dtype, D> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TensorData::Evaluated(buffer) => buffer.fmt(f),
-            // TensorData::Lazy(value) => value.fmt(f),
-        }
-    }
-}
-
-impl<const N: usize, Dtype: DType, D: Device> Clone for TensorData<N, Dtype, D> {
-    fn clone(&self) -> Self {
-        match self {
-            TensorData::Evaluated(buffer) => TensorData::Evaluated(buffer.clone()),
-            // TensorData::Lazy(value) => TensorData::Lazy(value.clone()),
-        }
-    }
+    Lazy(Box<Value<Dtype, D>>),
 }
 
 #[derive(Debug, Clone)]
-pub struct Tensor<const N: usize, Dtype: DType, D: Device> {
-    pub shape: [usize; N],
-    data: TensorData<N, Dtype, D>,
+pub struct Tensor<Dtype: DType, D: Device> {
+    pub shape: Vec<usize>,
+    data: TensorData<Dtype, D>,
 }
 
-impl<'device, const N: usize, Dtype: DType, D: Device> Tensor<N, Dtype, D> {
-    pub fn empty(shape: [usize; N]) -> Tensor<N, Dtype, D> {
+impl<Dtype: DType, D: Device> Tensor<Dtype, D> {
+    pub fn empty(shape: &[usize]) -> Tensor<Dtype, D> {
         let numel = shape.prod();
         assert_ne!(numel, 0, "cannot create a zero sized tensor");
 
         Tensor {
-            shape,
+            shape: shape.to_vec(),
             data: TensorData::Evaluated(D::Buffer::<Dtype>::new(numel).unwrap()),
         }
     }
 
-    pub fn zeros(shape: [usize; N]) -> Tensor<N, Dtype, D> {
+    pub fn zeros(shape: &[usize]) -> Tensor<Dtype, D> {
         let numel = shape.prod();
         assert_ne!(numel, 0, "cannot create a zero sized tensor");
 
@@ -61,7 +43,7 @@ impl<'device, const N: usize, Dtype: DType, D: Device> Tensor<N, Dtype, D> {
         t
     }
 
-    pub fn from_slice(shape: [usize; N], data: &[Dtype]) -> Tensor<N, Dtype, D> {
+    pub fn from_slice(shape: &[usize], data: &[Dtype]) -> Tensor<Dtype, D> {
         let numel = shape.prod();
         assert_eq!(
             numel,
@@ -79,29 +61,50 @@ impl<'device, const N: usize, Dtype: DType, D: Device> Tensor<N, Dtype, D> {
         t
     }
 
-    pub fn to_vec(&self) -> Vec<Dtype> {
-        match &self.data {
-            TensorData::Evaluated(buff) => {
-                let mut v = vec![Dtype::zero(); buff.len()];
-                buff.copy_out(&mut v);
-                v
-            } // TensorData::Lazy(value) => value.eval_cpu().to_vec(),
+    // pub fn to_vec(&self) -> Vec<Dtype> {
+    //     match &self.data {
+    //         TensorData::Evaluated(buff) => {
+    //             let mut v = vec![Dtype::zero(); buff.len()];
+    //             buff.copy_out(&mut v);
+    //             v
+    //         }
+    //         TensorData::Lazy(value) => value.eval_cpu().to_vec(),
+    //     }
+    // }
+}
+
+impl<Dtype: DType, D: Device> Add<Tensor<Dtype, D>> for Tensor<Dtype, D> {
+    type Output = Self;
+
+    fn add(self, rhs: Tensor<Dtype, D>) -> Self::Output {
+        assert_eq!(self.shape, rhs.shape);
+        let self_shape = self.shape.clone();
+        let addition = Box::new(Op::Addition(Value::Const(self), Value::Const(rhs)));
+        Tensor {
+            shape: self_shape,
+            data: TensorData::Lazy(Box::new(Value::Op(addition))),
         }
     }
 }
 
-// impl<const N: usize, Dtype: DType> Add<Tensor<N, Dtype, CpuDevice>>
-//     for Tensor<N, Dtype, CpuDevice>
-// {
-//     type Output = Self;
+#[cfg(test)]
+mod test {
+    use crate::{backends::CpuDevice, compute_graph::Op};
 
-//     fn add(self, rhs: Tensor<N, Dtype, CpuDevice>) -> Self::Output {
-//         assert_eq!(self.shape, rhs.shape);
-//         let self_shape = self.shape;
-//         let addition = Box::new(Op::Addition(Value::Const(self), Value::Const(rhs)));
-//         Tensor {
-//             shape: self_shape,
-//             data: new_lazy_data(Value::Op(addition)),
-//         }
-//     }
-// }
+    use super::{Tensor, TensorData, Value};
+
+    #[test]
+    fn test_add_graph() {
+        let a = Tensor::<f32, CpuDevice>::zeros(&[1]);
+        let b = Tensor::<f32, CpuDevice>::zeros(&[1]);
+        let r = a + b;
+        if let TensorData::Lazy(v) = r.data {
+            if let Value::Op(o) = *v {
+                if let Op::Addition(a, b) = *o {
+                    return;
+                }
+            }
+        }
+        panic!("should have been an add of a and b");
+    }
+}
