@@ -1,6 +1,6 @@
 use crate::{
-    allocator::{Allocator, Buffer},
     backends::{cpu::CpuDevice, Device},
+    buffer::Buffer,
     // compute_graph::{Op, Value},
     dtype::DType,
     utils::Prod,
@@ -9,7 +9,7 @@ use std::ops::Add;
 use std::{fmt::Debug, marker::PhantomData};
 
 pub enum TensorData<const N: usize, Dtype: DType, D: Device> {
-    Evaluated(<D::Allocator as Allocator>::Buffer<Dtype>),
+    Evaluated(D::Buffer<Dtype>),
     // Lazy(Box<Value<N, Dtype>>),
 }
 
@@ -44,7 +44,7 @@ impl<'device, const N: usize, Dtype: DType, D: Device> Tensor<N, Dtype, D> {
 
         Tensor {
             shape,
-            data: TensorData::Evaluated(D::Allocator::alloc::<Dtype>(numel).unwrap()),
+            data: TensorData::Evaluated(D::Buffer::<Dtype>::new(numel).unwrap()),
         }
     }
 

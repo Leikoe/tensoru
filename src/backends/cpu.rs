@@ -1,14 +1,11 @@
 use super::Device;
-use crate::{
-    allocator::{Allocator, Buffer},
-    dtype::DType,
-};
-use std::fmt::Debug;
+use crate::{buffer::Buffer, dtype::DType};
+use std::{any::type_name, fmt::Debug};
 
 pub struct CpuDevice;
 
 impl Device for CpuDevice {
-    type Allocator = CpuAllocator;
+    type Buffer<Dtype: DType> = CpuBuffer<Dtype>;
 }
 
 impl Debug for CpuDevice {
@@ -20,6 +17,12 @@ impl Debug for CpuDevice {
 #[derive(Debug, Clone)]
 pub struct CpuBuffer<Dtype: DType> {
     raw_buffer: Box<[Dtype]>,
+}
+
+impl<Dtype: DType> Drop for CpuBuffer<Dtype> {
+    fn drop(&mut self) {
+        println!("DEBUG: dropped {}(len={})", type_name::<Self>(), self.len());
+    }
 }
 
 impl<Dtype: DType> Buffer<Dtype> for CpuBuffer<Dtype> {
@@ -35,37 +38,28 @@ impl<Dtype: DType> Buffer<Dtype> for CpuBuffer<Dtype> {
         assert_eq!(dst.len(), self.len());
         dst.copy_from_slice(&self.raw_buffer);
     }
-}
 
-pub struct CpuAllocator;
-
-impl Allocator for CpuAllocator {
-    type Buffer<Dtype: DType> = CpuBuffer<Dtype>;
-
-    fn alloc<Dtype: DType>(size: usize) -> Result<Self::Buffer<Dtype>, std::alloc::AllocError> {
+    fn new(size: usize) -> Result<Self, std::alloc::AllocError> {
         // SAFETY: data has to be copied in the [`Bufffer`] before using it
         let raw_buffer: Box<[Dtype]> =
             unsafe { Box::<[Dtype]>::try_new_uninit_slice(size)?.assume_init() };
         Ok(CpuBuffer { raw_buffer })
     }
-
-    unsafe fn free<Dtype: DType>(b: Self::Buffer<Dtype>) {
-        drop(b); // explicit drop
-    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{allocator::Allocator, backends::cpu::CpuAllocator};
     use std::usize;
+
+    use crate::{backends::cpu::CpuBuffer, buffer::Buffer};
 
     #[test]
     fn oom() {
-        assert!(CpuAllocator::alloc::<u8>(usize::MAX).is_err());
+        assert!(CpuBuffer::<u8>::new(usize::MAX).is_err());
     }
 
     #[test]
     fn simple() {
-        let _ = CpuAllocator::alloc::<f64>(16).unwrap();
+        let _ = CpuBuffer::<f64>::new(16).unwrap();
     }
 }

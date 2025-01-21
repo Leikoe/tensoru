@@ -1,13 +1,11 @@
 use super::Device;
-use crate::{
-    allocator::{Allocator, Buffer},
-    dtype::DType,
-};
+use crate::{buffer::Buffer, dtype::DType};
 use metal::{
     foreign_types::ForeignType, Buffer as RawBuffer, Device as RawDevice, MTLResourceOptions,
 };
 use std::{
     alloc::AllocError,
+    any::type_name,
     fmt::Debug,
     sync::{LazyLock, Mutex},
 };
@@ -25,11 +23,11 @@ impl Debug for MetalDevice {
 }
 
 impl Device for MetalDevice {
-    type Allocator = MetalAllocator;
+    type Buffer<Dtype: DType> = MetalBuffer<Dtype>;
 }
 
 pub struct MetalBuffer<Dtype: DType> {
-    raw_buffer: RawBuffer,
+    _raw_buffer: RawBuffer,
     slice: &'static mut [Dtype],
 }
 
@@ -39,6 +37,12 @@ impl<Dtype: DType> Debug for MetalBuffer<Dtype> {
         let mut v = unsafe { Box::new_uninit_slice(self.len()).assume_init() };
         self.copy_out(&mut v[..]);
         v.fmt(f)
+    }
+}
+
+impl<Dtype: DType> Drop for MetalBuffer<Dtype> {
+    fn drop(&mut self) {
+        println!("DEBUG: dropped {}(len={})", type_name::<Self>(), self.len());
     }
 }
 
@@ -56,21 +60,8 @@ impl<Dtype: DType> Buffer<Dtype> for MetalBuffer<Dtype> {
         assert_eq!(dst.len(), self.slice.len());
         dst.copy_from_slice(self.slice);
     }
-}
 
-impl<'device, Dtype: DType> Clone for MetalBuffer<Dtype> {
-    fn clone(&self) -> Self {
-        MetalAllocator::alloc::<Dtype>(self.len())
-            .expect("couldn't alloc while cloning METAL buffer")
-    }
-}
-
-pub struct MetalAllocator;
-
-impl Allocator for MetalAllocator {
-    type Buffer<Dtype: DType> = MetalBuffer<Dtype>;
-
-    fn alloc<Dtype: DType>(size: usize) -> Result<Self::Buffer<Dtype>, AllocError> {
+    fn new(size: usize) -> Result<Self, AllocError> {
         let raw_buffer = RAW_DEVICE
             .lock()
             .expect("METAL's RAW_DEVICE mutex was poisoned.")
@@ -82,15 +73,22 @@ impl Allocator for MetalAllocator {
             // metal bindings api doesn't already return a result ...
             return Err(AllocError);
         }
-
         let slice = unsafe {
             std::slice::from_raw_parts_mut::<Dtype>(raw_buffer.contents() as *mut Dtype, size)
         };
-        Ok(MetalBuffer { raw_buffer, slice })
+        Ok(MetalBuffer {
+            _raw_buffer: raw_buffer,
+            slice,
+        })
     }
+}
 
-    unsafe fn free<Dtype: DType>(b: Self::Buffer<Dtype>) {
-        drop(b.raw_buffer) // explicit drop, hopefully release on drop :joy:
+impl<'device, Dtype: DType> Clone for MetalBuffer<Dtype> {
+    fn clone(&self) -> Self {
+        let mut new_buff = MetalBuffer::<Dtype>::new(self.len())
+            .expect("couldn't alloc while cloning METAL buffer");
+        new_buff.copy_in(self.slice);
+        new_buff
     }
 }
 
@@ -98,27 +96,27 @@ impl Allocator for MetalAllocator {
 mod test {
     use std::{thread, time::Duration, usize};
 
-    use crate::{allocator::Allocator, backends::metal::MetalAllocator};
+    use crate::{backends::metal::MetalBuffer, buffer::Buffer};
 
     use super::RAW_DEVICE;
 
     #[test]
     fn test_oom() {
-        assert!(MetalAllocator::alloc::<u8>(usize::MAX).is_err());
+        assert!(MetalBuffer::<u8>::new(usize::MAX).is_err());
     }
 
     #[test]
     fn test_simple() {
-        let _ = MetalAllocator::alloc::<f64>(16).unwrap();
+        let _ = MetalBuffer::<f64>::new(16).unwrap();
     }
 
     #[test]
     fn test_free() {
         let before = RAW_DEVICE.lock().unwrap().current_allocated_size();
-        let buff = MetalAllocator::alloc::<f64>(1).unwrap();
+        let buff = MetalBuffer::<f64>::new(16_000).unwrap();
         let after = RAW_DEVICE.lock().unwrap().current_allocated_size();
         assert!(before < after);
-        unsafe { MetalAllocator::free(buff) };
+        drop(buff);
         thread::sleep(Duration::from_millis(50)); // wait for real dealloc on device
         let after_free = RAW_DEVICE.lock().unwrap().current_allocated_size();
         assert_eq!(after_free, before);

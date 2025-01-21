@@ -1,8 +1,8 @@
 #![feature(f16)]
 #![feature(allocator_api)]
 #![allow(refining_impl_trait)]
-mod allocator;
 mod backends;
+mod buffer;
 mod compute_graph;
 pub mod dtype;
 pub mod op;

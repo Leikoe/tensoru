@@ -1,4 +1,4 @@
-use crate::allocator::Allocator;
+use crate::{buffer::Buffer, dtype::DType};
 use std::fmt::Debug;
 
 pub mod cpu;
@@ -6,5 +6,5 @@ pub mod cpu;
 pub mod metal;
 
 pub trait Device: Debug {
-    type Allocator: Allocator;
+    type Buffer<Dtype: DType>: Buffer<Dtype>;
 }
