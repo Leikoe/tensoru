@@ -15,8 +15,14 @@ static RAW_DEVICE: LazyLock<Mutex<RawDevice>> = LazyLock::new(|| {
     Mutex::new(RawDevice::system_default().expect("couldn't get system's default METAL device"))
 });
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct MetalDevice;
+
+impl Debug for MetalDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("METAL")
+    }
+}
 
 impl Device for MetalDevice {
     type Buffer<Dtype: DType> = MetalBuffer<Dtype>;

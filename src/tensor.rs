@@ -1,10 +1,11 @@
 use crate::{
     backends::{CpuBuffer, Device},
     buffer::Buffer,
-    compute_graph::{LoadNode, Node},
+    compute_graph::{BinaryOpNode, LoadNode, Node},
     dtype::DType,
+    op::{AddOp, BinaryOp},
 };
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData, ops::Add};
 
 #[derive(Debug)]
 pub struct Tensor<DTYPE: DType, DEVICE: Device> {
@@ -53,26 +54,24 @@ impl<DTYPE: DType, DEVICE: Device> Tensor<DTYPE, DEVICE> {
     }
 }
 
-// impl<
-//         DTYPE: DType,
-//         DEVICE: Device,
-//         LHS: TensorData<DTYPE, DEVICE>,
-//         RHS: TensorData<DTYPE, DEVICE>,
-//     > Add<Tensor<DTYPE, DEVICE, RHS>> for Tensor<DTYPE, DEVICE, LHS>
-// {
-//     type Output = Tensor<DTYPE, DEVICE, Lazy<BinaryOpNode<AddOp, LHS::NodeType, RHS::NodeType>>>;
+impl<DTYPE: DType, DEVICE: Device> Add<Tensor<DTYPE, DEVICE>> for Tensor<DTYPE, DEVICE> {
+    type Output = Tensor<DTYPE, DEVICE>;
 
-//     fn add(self, rhs: Tensor<DTYPE, DEVICE, RHS>) -> Self::Output {
-//         assert_eq!(self.shape, rhs.shape);
-//         let self_shape = self.shape.clone();
-//         Tensor {
-//             shape: self_shape,
-//             data: Lazy(BinaryOpNode(self.into(), rhs.into(), PhantomData)),
-//             dtype: PhantomData,
-//             device: PhantomData,
-//         }
-//     }
-// }
+    fn add(self, rhs: Tensor<DTYPE, DEVICE>) -> Self::Output
+    where
+        AddOp: BinaryOp<DTYPE, DTYPE, DEVICE, Output = DTYPE>,
+    {
+        assert_eq!(self.shape, rhs.shape);
+        let self_shape = self.shape.clone();
+        let op: BinaryOpNode<AddOp, _, _, DEVICE> =
+            BinaryOpNode(self.data, rhs.data, PhantomData, PhantomData);
+        Tensor {
+            shape: self_shape,
+            data: Box::new(op),
+            device: PhantomData,
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {

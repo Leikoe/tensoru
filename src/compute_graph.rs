@@ -53,6 +53,11 @@ impl<OP: BinaryOp<LHS::Dtype, RHS::Dtype, DEVICE>, LHS: Node, RHS: Node, DEVICE:
     type Device = LHS::Device;
 }
 
+impl<DTYPE: DType, DEVICE: Device> Node for Box<dyn Node<Dtype = DTYPE, Device = DEVICE>> {
+    type Dtype = DTYPE;
+    type Device = DEVICE;
+}
+
 #[cfg(test)]
 mod test {
     use std::marker::PhantomData;

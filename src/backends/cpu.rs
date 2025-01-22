@@ -4,11 +4,17 @@ use super::Device;
 use crate::{buffer::Buffer, dtype::DType};
 use std::{any::type_name, fmt::Debug};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct CpuDevice;
 
 impl Device for CpuDevice {
     type Buffer<Dtype: DType> = CpuBuffer<Dtype>;
+}
+
+impl Debug for CpuDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CPU")
+    }
 }
 
 #[derive(Debug, Clone)]
