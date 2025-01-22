@@ -5,7 +5,6 @@ pub mod backends;
 mod buffer;
 mod compute_graph;
 pub mod dtype;
-mod ir;
 pub mod op;
 mod tensor;
 mod utils;
