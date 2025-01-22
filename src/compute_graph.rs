@@ -1,41 +1,56 @@
-use std::marker::PhantomData;
+use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
     backends::Device,
     dtype::DType,
     op::{BinaryOp, UnaryOp},
-    tensor::Evaluated,
-    Tensor,
 };
 
-pub trait Node {
+pub trait Node: Debug {
     type Dtype: DType;
+    type Device: Device;
 }
 
-pub struct LoadNode<DTYPE: DType, DEVICE: Device>(
-    pub Tensor<DTYPE, DEVICE, Evaluated<DTYPE, DEVICE::Buffer<DTYPE>>>,
-);
+#[derive(Debug, Clone)]
+pub struct LoadNode<DTYPE: DType, DEVICE: Device>(pub DEVICE::Buffer<DTYPE>);
 
 impl<Dtype: DType, D: Device> Node for LoadNode<Dtype, D> {
     type Dtype = Dtype;
+    type Device = D;
 }
 
-pub struct UnaryOpNode<OP: UnaryOp<INPUT::Dtype>, INPUT: Node>(INPUT, PhantomData<OP>);
+#[derive(Debug, Clone, Copy)]
+pub struct UnaryOpNode<OP: UnaryOp<INPUT::Dtype, DEVICE>, INPUT: Node, DEVICE: Device>(
+    INPUT,
+    PhantomData<OP>,
+    PhantomData<DEVICE>,
+);
 
-impl<OP: UnaryOp<INPUT::Dtype>, INPUT: Node> Node for UnaryOpNode<OP, INPUT> {
+impl<OP: UnaryOp<INPUT::Dtype, DEVICE>, INPUT: Node, DEVICE: Device> Node
+    for UnaryOpNode<OP, INPUT, DEVICE>
+{
     type Dtype = OP::Output;
+    type Device = INPUT::Device;
 }
 
-pub struct BinaryOpNode<OP: BinaryOp<LHS::Dtype, RHS::Dtype>, LHS: Node, RHS: Node>(
+#[derive(Debug)]
+pub struct BinaryOpNode<
+    OP: BinaryOp<LHS::Dtype, RHS::Dtype, DEVICE>,
+    LHS: Node,
+    RHS: Node,
+    DEVICE: Device,
+>(
     pub LHS,
     pub RHS,
     pub PhantomData<OP>,
+    pub PhantomData<DEVICE>,
 );
 
-impl<OP: BinaryOp<LHS::Dtype, RHS::Dtype>, LHS: Node, RHS: Node> Node
-    for BinaryOpNode<OP, LHS, RHS>
+impl<OP: BinaryOp<LHS::Dtype, RHS::Dtype, DEVICE>, LHS: Node, RHS: Node, DEVICE: Device> Node
+    for BinaryOpNode<OP, LHS, RHS, DEVICE>
 {
     type Dtype = OP::Output;
+    type Device = LHS::Device;
 }
 
 #[cfg(test)]
@@ -44,17 +59,16 @@ mod test {
 
     use crate::{
         backends::{CpuBuffer, CpuDevice},
+        buffer::Buffer,
         op::AbsOp,
-        tensor::Evaluated,
-        Tensor,
     };
 
     use super::{LoadNode, UnaryOpNode};
 
     #[test]
     fn test_simple() {
-        let a = Tensor::<f32, CpuDevice, Evaluated<f32, CpuBuffer<f32>>>::zeros(&[3]);
+        let a = CpuBuffer::new(16).unwrap();
         let l = LoadNode::<f32, CpuDevice>(a);
-        let ast = UnaryOpNode(l, PhantomData::<AbsOp>);
+        let _ast = UnaryOpNode(l, PhantomData::<AbsOp>, PhantomData::<CpuDevice>);
     }
 }

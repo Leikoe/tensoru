@@ -8,7 +8,7 @@ pub use cpu::{CpuBuffer, CpuDevice};
 mod metal;
 pub use metal::{MetalBuffer, MetalDevice};
 
-pub trait Device: Debug {
+pub trait Device: 'static + Debug + Clone + Copy {
     type Buffer<Dtype: DType>: Buffer<Dtype>;
 }
 

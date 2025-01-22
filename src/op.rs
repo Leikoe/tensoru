@@ -1,63 +1,43 @@
-use crate::{
-    backends::Device,
-    dtype::DType,
-    tensor::{Tensor, TensorData},
-};
+use std::fmt::Debug;
 
-pub trait UnaryOp<IDTYPE: DType> {
+use crate::{backends::Device, dtype::DType, tensor::Tensor};
+
+pub trait Op: Debug + 'static + Copy {}
+
+pub trait UnaryOp<IDTYPE: DType, DEVICE: Device>: Op {
     type Output: DType;
-    fn forward<
-        DEVICE: Device,
-        IDATA: TensorData<IDTYPE, DEVICE>,
-        ODATA: TensorData<Self::Output, DEVICE>,
-    >(
-        a: Tensor<IDTYPE, DEVICE, IDATA>,
-    ) -> Tensor<Self::Output, DEVICE, ODATA>;
+    fn forward(a: Tensor<IDTYPE, DEVICE>) -> Tensor<Self::Output, DEVICE>;
 }
 
-pub trait BinaryOp<LHSDTYPE: DType, RHSDTYPE: DType> {
+pub trait BinaryOp<LHSDTYPE: DType, RHSDTYPE: DType, DEVICE: Device>: Op {
     type Output: DType;
-    fn forward<
-        DEVICE: Device,
-        LHSDATA: TensorData<LHSDTYPE, DEVICE>,
-        RHSDATA: TensorData<RHSDTYPE, DEVICE>,
-        ODATA: TensorData<Self::Output, DEVICE>,
-    >(
-        lhs: Tensor<LHSDTYPE, DEVICE, LHSDATA>,
-        rhs: Tensor<RHSDTYPE, DEVICE, RHSDATA>,
-    ) -> Tensor<Self::Output, DEVICE, ODATA>;
+    fn forward(
+        lhs: Tensor<LHSDTYPE, DEVICE>,
+        rhs: Tensor<RHSDTYPE, DEVICE>,
+    ) -> Tensor<Self::Output, DEVICE>;
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct AbsOp;
+impl Op for AbsOp {}
+impl<IDTYPE: DType, DEVICE: Device> UnaryOp<IDTYPE, DEVICE> for AbsOp {
+    type Output = IDTYPE;
 
-impl<INPUT: DType> UnaryOp<INPUT> for AbsOp {
-    type Output = INPUT;
-
-    fn forward<
-        DEVICE: Device,
-        IDATA: TensorData<INPUT, DEVICE>,
-        ODATA: TensorData<Self::Output, DEVICE>,
-    >(
-        _a: Tensor<INPUT, DEVICE, IDATA>,
-    ) -> Tensor<Self::Output, DEVICE, ODATA> {
+    fn forward(_a: Tensor<IDTYPE, DEVICE>) -> Tensor<Self::Output, DEVICE> {
         unimplemented!()
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct AddOp;
+impl Op for AddOp {}
+impl<IDTYPE: DType, DEVICE: Device> BinaryOp<IDTYPE, IDTYPE, DEVICE> for AddOp {
+    type Output = IDTYPE;
 
-impl<INPUT: DType> BinaryOp<INPUT, INPUT> for AddOp {
-    type Output = INPUT;
-
-    fn forward<
-        DEVICE: Device,
-        LHSDATA: TensorData<INPUT, DEVICE>,
-        RHSDATA: TensorData<INPUT, DEVICE>,
-        ODATA: TensorData<Self::Output, DEVICE>,
-    >(
-        _lhs: Tensor<INPUT, DEVICE, LHSDATA>,
-        _rhs: Tensor<INPUT, DEVICE, RHSDATA>,
-    ) -> Tensor<Self::Output, DEVICE, ODATA> {
+    fn forward(
+        _lhs: Tensor<IDTYPE, DEVICE>,
+        _rhs: Tensor<IDTYPE, DEVICE>,
+    ) -> Tensor<Self::Output, DEVICE> {
         unimplemented!()
     }
 }
