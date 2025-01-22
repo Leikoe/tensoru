@@ -5,6 +5,7 @@ pub mod backends;
 mod buffer;
 mod compute_graph;
 pub mod dtype;
+mod ir;
 pub mod op;
 mod tensor;
 mod utils;
@@ -13,11 +14,11 @@ pub use tensor::Tensor;
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        backends::{CpuDevice, MetalDevice},
-        // op::{Add, BinaryOp},
-        tensor::Tensor,
-    };
+    // use crate::{
+    //     backends::{CpuDevice, MetalDevice},
+    //     // op::{Add, BinaryOp},
+    //     tensor::Tensor,
+    // };
 
     // #[test]
     // fn zeros() {
