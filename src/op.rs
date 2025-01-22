@@ -28,9 +28,9 @@ pub trait BinaryOp<LHSDTYPE: DType, RHSDTYPE: DType> {
     ) -> Tensor<Self::Output, DEVICE, ODATA>;
 }
 
-pub struct Abs;
+pub struct AbsOp;
 
-impl<INPUT: DType> UnaryOp<INPUT> for Abs {
+impl<INPUT: DType> UnaryOp<INPUT> for AbsOp {
     type Output = INPUT;
 
     fn forward<
@@ -39,6 +39,24 @@ impl<INPUT: DType> UnaryOp<INPUT> for Abs {
         ODATA: TensorData<Self::Output, DEVICE>,
     >(
         _a: Tensor<INPUT, DEVICE, IDATA>,
+    ) -> Tensor<Self::Output, DEVICE, ODATA> {
+        unimplemented!()
+    }
+}
+
+pub struct AddOp;
+
+impl<INPUT: DType> BinaryOp<INPUT, INPUT> for AddOp {
+    type Output = INPUT;
+
+    fn forward<
+        DEVICE: Device,
+        LHSDATA: TensorData<INPUT, DEVICE>,
+        RHSDATA: TensorData<INPUT, DEVICE>,
+        ODATA: TensorData<Self::Output, DEVICE>,
+    >(
+        _lhs: Tensor<INPUT, DEVICE, LHSDATA>,
+        _rhs: Tensor<INPUT, DEVICE, RHSDATA>,
     ) -> Tensor<Self::Output, DEVICE, ODATA> {
         unimplemented!()
     }

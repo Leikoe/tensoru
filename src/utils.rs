@@ -1,7 +1,3 @@
-use std::collections::{HashMap, HashSet};
-
-use crate::{backends::Device, compute_graph::Value, dtype::DType};
-
 pub trait Prod {
     fn prod(&self) -> usize;
 }

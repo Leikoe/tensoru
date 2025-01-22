@@ -1,24 +1,42 @@
 use crate::{
     backends::Device,
     buffer::Buffer,
-    compute_graph::{BinaryOpNode, Node},
+    compute_graph::{BinaryOpNode, LoadNode, Node},
     dtype::DType,
+    op::AddOp,
     utils::Prod,
 };
 use std::{fmt::Debug, marker::PhantomData, ops::Add};
 
 pub trait TensorData<Dtype: DType, D: Device> {
     type Data;
+    type NodeType: Node;
 }
 
 pub struct Evaluated<Dtype: DType, B: Buffer<Dtype>>(B, PhantomData<Dtype>);
 impl<Dtype: DType, B: Buffer<Dtype>, D: Device> TensorData<Dtype, D> for Evaluated<Dtype, B> {
     type Data = B;
+    type NodeType = LoadNode<Dtype, D>;
 }
 pub struct Lazy<G: Node>(G);
 impl<G: Node, D: Device> TensorData<G::Dtype, D> for Lazy<G> {
     type Data = G;
+    type NodeType = G;
 }
+
+impl<DTYPE: DType, DEVICE: Device> Into<LoadNode<DTYPE, DEVICE>>
+    for Tensor<DTYPE, DEVICE, Evaluated<DTYPE, DEVICE::Buffer<DTYPE>>>
+{
+    fn into(self) -> LoadNode<DTYPE, DEVICE> {
+        LoadNode::<DTYPE, DEVICE>(self)
+    }
+}
+
+// impl<DEVICE: Device, G: Node> Into<G> for Tensor<G::Dtype, DEVICE, Lazy<G>> {
+//     fn into(self) -> G {
+//         self.data.0
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub struct Tensor<DTYPE: DType, DEVICE: Device, DATA: TensorData<DTYPE, DEVICE>> {
@@ -70,60 +88,46 @@ impl<DTYPE: DType, DEVICE: Device, DATA: TensorData<DTYPE, DEVICE>> Tensor<DTYPE
         t.data.0.copy_in(data);
         t
     }
-
-    // pub fn to_vec(&self) -> Vec<Dtype> {
-    //     match &self.data {
-    //         TensorData::Evaluated(buff) => {
-    //             let mut v = vec![Dtype::zero(); buff.len()];
-    //             buff.copy_out(&mut v);
-    //             v
-    //         }
-    //         TensorData::Lazy(value) => value.eval_cpu().to_vec(),
-    //     }
-    // }
 }
 
-// impl<DTYPE: DType, DEVICE: Device, DATA: TensorData<DTYPE, DEVICE>> Add<Tensor<DTYPE, DEVICE, DATA>>
-//     for Tensor<DTYPE, DEVICE, DATA>
-// {
-//     type Output = Self;
+impl<DEVICE: Device, G: Node> Tensor<G::Dtype, DEVICE, Lazy<G>> {
+    pub fn to_vec(&self) -> Vec<G::Dtype> {
+        // eval graph
+        unimplemented!()
+    }
+}
 
-//     fn add(self, rhs: Tensor<DTYPE, DEVICE>) -> Self::Output {
+impl<DTYPE: DType, DEVICE: Device> Tensor<DTYPE, DEVICE, Evaluated<DTYPE, DEVICE::Buffer<DTYPE>>> {
+    pub fn to_vec(&self) -> Vec<DTYPE> {
+        let mut v = vec![DTYPE::zero(); self.data.0.len()];
+        self.data.0.copy_out(&mut v);
+        v
+    }
+}
+
+// impl<
+//         DTYPE: DType,
+//         DEVICE: Device,
+//         LHS: TensorData<DTYPE, DEVICE>,
+//         RHS: TensorData<DTYPE, DEVICE>,
+//     > Add<Tensor<DTYPE, DEVICE, RHS>> for Tensor<DTYPE, DEVICE, LHS>
+// {
+//     type Output = Tensor<DTYPE, DEVICE, Lazy<BinaryOpNode<AddOp, LHS::NodeType, RHS::NodeType>>>;
+
+//     fn add(self, rhs: Tensor<DTYPE, DEVICE, RHS>) -> Self::Output {
 //         assert_eq!(self.shape, rhs.shape);
 //         let self_shape = self.shape.clone();
 //         Tensor {
 //             shape: self_shape,
-//             data: Lazy(BinaryOpNode()),
+//             data: Lazy(BinaryOpNode(self.into(), rhs.into(), PhantomData)),
+//             dtype: PhantomData,
+//             device: PhantomData,
 //         }
 //     }
 // }
 
-impl<
-        DTYPE: DType,
-        DEVICE: Device,
-        LHS: TensorData<DTYPE, DEVICE>,
-        RHS: TensorData<DTYPE, DEVICE>,
-        OUTPUT: TensorData<DTYPE, DEVICE>,
-    > Add<Tensor<DTYPE, DEVICE, RHS>> for Tensor<DTYPE, DEVICE, LHS>
-{
-    type Output = OUTPUT;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape);
-        let self_shape = self.shape.clone();
-        Tensor {
-            shape: self_shape,
-            data: Lazy(BinaryOpNode(self.data, right.data)),
-            dtype: PhantomData,
-            device: PhantomData,
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use super::{Tensor, TensorData, Value};
-    use crate::{backends::CpuDevice, compute_graph::Op};
 
     #[test]
     fn test_add_graph() {
