@@ -23,8 +23,11 @@ fn main() {
     let b = Tensor::<f64, CpuDevice>::from_slice(&[3], &[3., 2., 1.]);
 
     // Numeric ops work !
-    let r = a + b;
+    let mut r = a + b;
 
     // We can inspect the generated compute graph using the debug print
-    dbg!(r);
+    dbg!(&r);
+
+    // converting it to a vec evaluates it
+    r.to_vec();
 }

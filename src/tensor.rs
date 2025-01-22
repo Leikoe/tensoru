@@ -52,6 +52,14 @@ impl<DTYPE: DType, DEVICE: Device> Tensor<DTYPE, DEVICE> {
             device: PhantomData,
         }
     }
+
+    pub fn to_vec(&mut self) -> Vec<DTYPE> {
+        let b = self.data.eval_cpu();
+        let mut v = vec![DTYPE::ZERO; b.len()];
+        b.copy_out(&mut v);
+        self.data = Box::new(LoadNode(b));
+        v
+    }
 }
 
 impl<DTYPE: DType, DEVICE: Device> Add<Tensor<DTYPE, DEVICE>> for Tensor<DTYPE, DEVICE> {

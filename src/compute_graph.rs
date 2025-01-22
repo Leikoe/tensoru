@@ -9,6 +9,8 @@ use crate::{
 pub trait Node: Debug {
     type Dtype: DType;
     type Device: Device;
+
+    fn eval_cpu(&self) -> <Self::Device as Device>::Buffer<Self::Dtype>;
 }
 
 #[derive(Debug, Clone)]
@@ -17,6 +19,10 @@ pub struct LoadNode<DTYPE: DType, DEVICE: Device>(pub DEVICE::Buffer<DTYPE>);
 impl<Dtype: DType, D: Device> Node for LoadNode<Dtype, D> {
     type Dtype = Dtype;
     type Device = D;
+
+    fn eval_cpu(&self) -> <Self::Device as Device>::Buffer<Self::Dtype> {
+        self.0.clone()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -31,6 +37,10 @@ impl<OP: UnaryOp<INPUT::Dtype, DEVICE>, INPUT: Node, DEVICE: Device> Node
 {
     type Dtype = OP::Output;
     type Device = INPUT::Device;
+
+    fn eval_cpu(&self) -> <Self::Device as Device>::Buffer<Self::Dtype> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug)]
@@ -51,11 +61,19 @@ impl<OP: BinaryOp<LHS::Dtype, RHS::Dtype, DEVICE>, LHS: Node, RHS: Node, DEVICE:
 {
     type Dtype = OP::Output;
     type Device = LHS::Device;
+
+    fn eval_cpu(&self) -> <Self::Device as Device>::Buffer<Self::Dtype> {
+        unimplemented!()
+    }
 }
 
 impl<DTYPE: DType, DEVICE: Device> Node for Box<dyn Node<Dtype = DTYPE, Device = DEVICE>> {
     type Dtype = DTYPE;
     type Device = DEVICE;
+
+    fn eval_cpu(&self) -> <Self::Device as Device>::Buffer<Self::Dtype> {
+        self.as_ref().eval_cpu()
+    }
 }
 
 #[cfg(test)]
