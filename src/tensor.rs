@@ -1,95 +1,53 @@
-use crate::{
-    backends::{CpuBuffer, Device},
-    buffer::Buffer,
-    compute_graph::{BinaryOpNode, LoadNode, Node},
-    dtype::DType,
-    op::{AddOp, BinaryOp},
-};
-use std::{fmt::Debug, marker::PhantomData, ops::Add};
+use crate::{backends::Device, buffer::Buffer, dtype::DType};
+use std::{fmt::Debug, sync::Arc};
 
-#[derive(Debug)]
-pub struct Tensor<DTYPE: DType, DEVICE: Device> {
+#[derive(Clone, Debug)]
+pub enum TensorData<T: DType, D: Device> {
+    Realized(Arc<D::Buffer<T>>),
+    UnRealized, // (Graph ???) the tensor should contain some graph
+}
+
+#[derive(Clone, Debug)]
+pub struct Tensor<T: DType, D: Device> {
     pub shape: Vec<usize>,
-    data: Box<dyn Node<Dtype = DTYPE, Device = DEVICE>>,
-    device: PhantomData<DEVICE>,
+    data: TensorData<T, D>,
 }
 
-impl<DTYPE: DType, DEVICE: Device> Tensor<DTYPE, DEVICE> {
-    pub fn empty(shape: &[usize]) -> Tensor<DTYPE, DEVICE> {
-        let numel = shape.iter().product();
+impl<T: DType, D: Device> Tensor<T, D> {
+    pub fn empty(shape: &[usize]) -> Self {
         Tensor {
             shape: shape.to_vec(),
-            data: Box::new(LoadNode(DEVICE::Buffer::<DTYPE>::new(numel).unwrap())),
-            device: PhantomData,
+            data: TensorData::UnRealized,
         }
     }
 
-    pub fn zeros(shape: &[usize]) -> Tensor<DTYPE, DEVICE> {
-        let numel = shape.iter().product();
+    pub fn zeros(shape: &[usize]) -> Self {
+        let buff = D::Buffer::<T>::new(shape.iter().product()).expect("OOM");
         Tensor {
             shape: shape.to_vec(),
-            data: Box::new(LoadNode(
-                CpuBuffer::from(vec![DTYPE::ZERO; numel]).to::<DEVICE>(),
-            )),
-            device: PhantomData,
+            data: TensorData::Realized(Arc::new(buff)),
         }
     }
 
-    pub fn from_slice(shape: &[usize], data: &[DTYPE]) -> Tensor<DTYPE, DEVICE> {
-        let numel = shape.iter().product();
-        assert_eq!(
-            numel,
-            data.len(),
-            "provided data wasn't the right size for shape: {:?}",
-            shape
-        );
-
-        let mut b = DEVICE::Buffer::<DTYPE>::new(numel).unwrap();
-        b.copy_in(data);
+    pub fn from_slice(shape: &[usize], data: &[T]) -> Self {
+        let size = shape.iter().product();
+        assert_eq!(size, data.len(), "mismatched shape and slice size");
+        let mut buff = D::Buffer::<T>::new(size).expect("OOM");
+        buff.copy_in(data);
         Tensor {
             shape: shape.to_vec(),
-            data: Box::new(LoadNode(CpuBuffer::from(data).to::<DEVICE>())),
-            device: PhantomData,
+            data: TensorData::Realized(Arc::new(buff)),
         }
     }
 
-    pub fn to_vec(&mut self) -> Vec<DTYPE> {
-        let b = self.data.eval_cpu();
-        let mut v = vec![DTYPE::ZERO; b.len()];
-        b.copy_out(&mut v);
-        self.data = Box::new(LoadNode(b));
-        v
-    }
-}
-
-impl<DTYPE: DType, DEVICE: Device> Add<Tensor<DTYPE, DEVICE>> for Tensor<DTYPE, DEVICE> {
-    type Output = Tensor<DTYPE, DEVICE>;
-
-    fn add(self, rhs: Tensor<DTYPE, DEVICE>) -> Self::Output
-    where
-        AddOp: BinaryOp<DTYPE, DTYPE, DEVICE, Output = DTYPE>,
-    {
-        assert_eq!(self.shape, rhs.shape);
-        let self_shape = self.shape.clone();
-        let op: BinaryOpNode<AddOp, _, _, DEVICE> =
-            BinaryOpNode(self.data, rhs.data, PhantomData, PhantomData);
-        Tensor {
-            shape: self_shape,
-            data: Box::new(op),
-            device: PhantomData,
+    pub fn to_vec(self) -> Vec<T> {
+        match self.data {
+            TensorData::Realized(buff) => {
+                let mut v = vec![T::ZERO; self.shape.iter().product()];
+                buff.copy_out(v.as_mut_slice());
+                v
+            }
+            TensorData::UnRealized => unimplemented!(),
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::{backends::CpuDevice, Tensor};
-
-    #[test]
-    fn test_add_graph() {
-        let a = Tensor::<f32, CpuDevice>::zeros(&[1]);
-        let b = Tensor::<f32, CpuDevice>::zeros(&[1]);
-        let r = a + b;
-        panic!("should have been an add of a and b");
     }
 }

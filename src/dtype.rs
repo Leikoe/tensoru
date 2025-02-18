@@ -1,6 +1,6 @@
 use std::{
     fmt::Debug,
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
 pub trait DType:
@@ -9,6 +9,10 @@ pub trait DType:
     + Sub<Self, Output = Self>
     + Mul<Self, Output = Self>
     + Div<Self, Output = Self>
+    + AddAssign<Self>
+    + SubAssign<Self>
+    + MulAssign<Self>
+    + DivAssign<Self>
     + Copy
     + Clone
     + Debug

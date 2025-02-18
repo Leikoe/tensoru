@@ -16,18 +16,23 @@ fn main() {
     let _empty_tensor = Tensor::<f32, CpuDevice>::empty(&scalar_shape);
 
     // Create a zero intialized tensor by using [`Tensor::zeros`].
-    let _zero_tensor = Tensor::<f32, CpuDevice>::zeros(&scalar_shape);
+    let zero_tensor = Tensor::<f32, CpuDevice>::zeros(&scalar_shape);
 
-    // Create a tensor from a slice using [`Tensor::from_slice`]
+    // Tensors can be cheaply cloned
+    let _cheap_zero_tensor = zero_tensor.clone();
+
+    // // Create a tensor from a slice using [`Tensor::from_slice`]
     let a = Tensor::<f64, CpuDevice>::from_slice(&[3], &[1., 2., 3.]);
     let b = Tensor::<f64, CpuDevice>::from_slice(&[3], &[3., 2., 1.]);
 
-    // Numeric ops work !
-    let mut r = a + b;
+    dbg!(a);
 
-    // We can inspect the generated compute graph using the debug print
-    dbg!(&r);
+    // // Numeric ops work !
+    // let mut r = a + b;
 
-    // converting it to a vec evaluates it
-    r.to_vec();
+    // // We can inspect the generated compute graph using the debug print
+    // dbg!(&r);
+
+    // // converting it to a vec evaluates it
+    // r.to_vec();
 }
