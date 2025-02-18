@@ -22,7 +22,10 @@ impl<T: DType, D: Device> Tensor<T, D> {
     }
 
     pub fn zeros(shape: &[usize]) -> Self {
-        let buff = D::Buffer::<T>::new(shape.iter().product()).expect("OOM");
+        let size = shape.iter().product();
+        let mut buff = D::Buffer::<T>::new(size).expect("OOM");
+        let zero_host_buff = vec![T::ZERO; size];
+        buff.copy_in(&zero_host_buff);
         Tensor {
             shape: shape.to_vec(),
             data: TensorData::Realized(Arc::new(buff)),
