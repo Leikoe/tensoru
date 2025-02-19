@@ -122,6 +122,7 @@ impl<'device, Dtype: DType> Clone for MetalBuffer<Dtype> {
 mod test {
     use std::{thread, time::Duration, usize};
 
+    use objc2_metal::MTLDevice;
     use tracing_test::traced_test;
 
     use crate::{backends::metal::MetalBuffer, buffer::Buffer};
@@ -143,13 +144,13 @@ mod test {
     #[test]
     #[traced_test]
     fn test_free() {
-        let before = RAW_DEVICE.lock().unwrap().current_allocated_size();
+        let before = RAW_DEVICE.lock().unwrap().currentAllocatedSize();
         let buff = MetalBuffer::<f64>::new(10_usize.pow(9)).unwrap();
-        let after = RAW_DEVICE.lock().unwrap().current_allocated_size();
+        let after = RAW_DEVICE.lock().unwrap().currentAllocatedSize();
         assert!(before < after);
         drop(buff);
         thread::sleep(Duration::from_millis(50)); // wait for real dealloc on device
-        let after_free = RAW_DEVICE.lock().unwrap().current_allocated_size();
+        let after_free = RAW_DEVICE.lock().unwrap().currentAllocatedSize();
         assert_eq!(after_free, before);
     }
 }
