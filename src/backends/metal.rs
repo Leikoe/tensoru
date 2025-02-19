@@ -1,18 +1,38 @@
 use super::Device;
 use crate::{buffer::Buffer, dtype::DType};
-use metal::{
-    foreign_types::ForeignType, Buffer as RawBuffer, Device as RawDevice, MTLResourceOptions,
-};
+use objc2::{rc::Retained, runtime::ProtocolObject};
+use objc2_metal::{MTLBuffer, MTLCreateSystemDefaultDevice, MTLDevice, MTLResourceOptions};
 use std::{
     alloc::AllocError,
     any::type_name,
     fmt::Debug,
-    sync::{LazyLock, Mutex},
+    ops::Deref,
+    sync::{Arc, LazyLock, Mutex},
 };
 use tracing::debug;
 
-static RAW_DEVICE: LazyLock<Mutex<RawDevice>> = LazyLock::new(|| {
-    Mutex::new(RawDevice::system_default().expect("couldn't get system's default METAL device"))
+// Linking to CoreGraphics to use MTLCreateSystemDefaultDevice
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {}
+
+// This is only because [`Retained<ProtocolObject<dyn MTLDevice>>`] doesn't implement Send and Sync even though it should.
+struct MTLDeviceWrapper(Retained<ProtocolObject<dyn MTLDevice>>);
+
+unsafe impl Send for MTLDeviceWrapper {}
+unsafe impl Sync for MTLDeviceWrapper {}
+
+impl Deref for MTLDeviceWrapper {
+    type Target = Retained<ProtocolObject<dyn MTLDevice>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+static RAW_DEVICE: LazyLock<Mutex<MTLDeviceWrapper>> = LazyLock::new(|| {
+    Mutex::new(MTLDeviceWrapper(
+        MTLCreateSystemDefaultDevice().expect("couldn't get system's default METAL device"),
+    ))
 });
 
 #[derive(Copy, Clone)]
@@ -29,7 +49,7 @@ impl Device for MetalDevice {
 }
 
 pub struct MetalBuffer<Dtype: DType> {
-    _raw_buffer: RawBuffer,
+    _raw_buffer: Retained<ProtocolObject<dyn MTLBuffer>>,
     slice: &'static mut [Dtype],
 }
 
@@ -71,16 +91,16 @@ impl<Dtype: DType> Buffer<Dtype> for MetalBuffer<Dtype> {
         let raw_buffer = RAW_DEVICE
             .lock()
             .expect("METAL's RAW_DEVICE mutex was poisoned.")
-            .new_buffer(
-                (size * std::mem::size_of::<Dtype>()) as u64,
+            .newBufferWithLength_options(
+                size * std::mem::size_of::<Dtype>(),
                 MTLResourceOptions::StorageModeShared,
-            );
-        if raw_buffer.as_ptr().is_null() {
-            // metal bindings api doesn't already return a result ...
-            return Err(AllocError);
-        }
+            )
+            .ok_or(AllocError)?;
         let slice = unsafe {
-            std::slice::from_raw_parts_mut::<Dtype>(raw_buffer.contents() as *mut Dtype, size)
+            std::slice::from_raw_parts_mut::<Dtype>(
+                raw_buffer.contents().as_ptr() as *mut Dtype,
+                size,
+            )
         };
         Ok(MetalBuffer {
             _raw_buffer: raw_buffer,
