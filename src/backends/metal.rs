@@ -48,21 +48,22 @@ impl Device for MetalDevice {
     type Buffer<Dtype: DType> = MetalBuffer<Dtype>;
 }
 
-pub struct MetalBuffer<Dtype: DType> {
+pub struct MetalBuffer<T: DType> {
     _raw_buffer: Retained<ProtocolObject<dyn MTLBuffer>>,
-    slice: &'static mut [Dtype],
+    slice: &'static mut [T],
 }
 
-impl<Dtype: DType> Debug for MetalBuffer<Dtype> {
+impl<T: DType> Debug for MetalBuffer<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // SAFETY: we are copying the data in it right after
         let mut v = unsafe { Box::new_uninit_slice(self.len()).assume_init() };
         self.copy_out(&mut v[..]);
+        write!(f, "MetalBuffer<{}, len={}> ", type_name::<T>(), self.len());
         v.fmt(f)
     }
 }
 
-impl<Dtype: DType> Drop for MetalBuffer<Dtype> {
+impl<T: DType> Drop for MetalBuffer<T> {
     fn drop(&mut self) {
         debug!(
             "dropped {}(len={})",
@@ -72,17 +73,17 @@ impl<Dtype: DType> Drop for MetalBuffer<Dtype> {
     }
 }
 
-impl<Dtype: DType> Buffer<Dtype> for MetalBuffer<Dtype> {
+impl<T: DType> Buffer<T> for MetalBuffer<T> {
     fn len(&self) -> usize {
         self.slice.len()
     }
 
-    fn copy_in(&mut self, src: &[Dtype]) {
+    fn copy_in(&mut self, src: &[T]) {
         assert_eq!(self.slice.len(), src.len());
         self.slice.copy_from_slice(src);
     }
 
-    fn copy_out(&self, dst: &mut [Dtype]) {
+    fn copy_out(&self, dst: &mut [T]) {
         assert_eq!(dst.len(), self.slice.len());
         dst.copy_from_slice(self.slice);
     }
@@ -92,15 +93,12 @@ impl<Dtype: DType> Buffer<Dtype> for MetalBuffer<Dtype> {
             .lock()
             .expect("METAL's RAW_DEVICE mutex was poisoned.")
             .newBufferWithLength_options(
-                size * std::mem::size_of::<Dtype>(),
+                size * std::mem::size_of::<T>(),
                 MTLResourceOptions::StorageModeShared,
             )
             .ok_or(AllocError)?;
         let slice = unsafe {
-            std::slice::from_raw_parts_mut::<Dtype>(
-                raw_buffer.contents().as_ptr() as *mut Dtype,
-                size,
-            )
+            std::slice::from_raw_parts_mut::<T>(raw_buffer.contents().as_ptr() as *mut T, size)
         };
         Ok(MetalBuffer {
             _raw_buffer: raw_buffer,
@@ -109,10 +107,10 @@ impl<Dtype: DType> Buffer<Dtype> for MetalBuffer<Dtype> {
     }
 }
 
-impl<'device, Dtype: DType> Clone for MetalBuffer<Dtype> {
+impl<'device, T: DType> Clone for MetalBuffer<T> {
     fn clone(&self) -> Self {
-        let mut new_buff = MetalBuffer::<Dtype>::new(self.len())
-            .expect("couldn't alloc while cloning METAL buffer");
+        let mut new_buff =
+            MetalBuffer::<T>::new(self.len()).expect("couldn't alloc while cloning METAL buffer");
         new_buff.copy_in(self.slice);
         new_buff
     }
