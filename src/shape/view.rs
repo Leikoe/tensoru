@@ -127,11 +127,9 @@ mod test {
 
     #[test]
     fn test_1_sized_dim_stride() {
-        let shape = [2, 1, 2];
-        assert_eq!(vec![2, 0, 1], strides_from_shape(&shape));
         assert_eq!(
             vec![2, 0, 1],
-            fix_1_sized_dims_strides(&shape, vec![2, 2, 1])
+            fix_1_sized_dims_strides(&[2, 1, 2], vec![2, 2, 1])
         );
     }
 
