@@ -58,7 +58,7 @@ impl<T: DType> Debug for MetalBuffer<T> {
         // SAFETY: we are copying the data in it right after
         let mut v = unsafe { Box::new_uninit_slice(self.len()).assume_init() };
         self.copy_out(&mut v[..]);
-        write!(f, "MetalBuffer<{}, len={}> ", type_name::<T>(), self.len());
+        write!(f, "MetalBuffer<{}, len={}> ", type_name::<T>(), self.len())?;
         v.fmt(f)
     }
 }
@@ -141,9 +141,15 @@ mod test {
 
     #[test]
     #[traced_test]
+    /// This test checks that the Buffer's drop impl works
+    ///
+    /// Note: this test sometimes fails for unknown reasons :/
     fn test_free() {
         let before = RAW_DEVICE.lock().unwrap().currentAllocatedSize();
-        let buff = MetalBuffer::<f64>::new(10_usize.pow(9)).unwrap();
+        const ALLOC_SIZE: usize = 10usize.pow(6);
+        let mut buff = MetalBuffer::<f64>::new(ALLOC_SIZE).unwrap();
+        // touch it because of first touch allocation policy
+        buff.copy_in(&[42.0; ALLOC_SIZE]);
         let after = RAW_DEVICE.lock().unwrap().currentAllocatedSize();
         assert!(before < after);
         drop(buff);
