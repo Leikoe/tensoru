@@ -3,6 +3,7 @@ use std::fmt::Debug;
 
 mod cpu;
 pub use cpu::{CpuBuffer, CpuDevice};
+use crate::codegen::ir::Kernel;
 
 #[cfg(target_os = "macos")]
 mod metal;
@@ -14,5 +15,5 @@ pub trait Device: 'static + Debug + Clone + Copy {
 }
 
 pub trait Renderer {
-    // fn
+    fn render(kernel: &Kernel) -> String;
 }

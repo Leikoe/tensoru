@@ -8,6 +8,7 @@ pub mod dtype;
 pub mod op;
 mod tensor;
 mod utils;
+mod codegen;
 
 pub use tensor::Tensor;
 
