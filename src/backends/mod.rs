@@ -6,6 +6,7 @@ pub use cpu::{CpuBuffer, CpuDevice};
 
 #[cfg(target_os = "macos")]
 mod metal;
+#[cfg(target_os = "macos")]
 pub use metal::{MetalBuffer, MetalDevice};
 
 pub trait Device: 'static + Debug + Clone + Copy {
