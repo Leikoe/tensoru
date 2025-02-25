@@ -179,8 +179,33 @@ impl KernelBuilder {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{BlockBuilder, Expr, KernelBuilder, LValue, ScalarType, Type};
+pub mod tests {
+    use super::{BlockBuilder, Expr, Kernel, KernelBuilder, LValue, ScalarType, Type};
+
+    pub fn gen_simple_reduce(n: usize) -> Kernel {
+        let mut kb = KernelBuilder::new("reduce");
+        const ELEM_TYPE: ScalarType = ScalarType::F16;
+        let a = kb.add_input(Type::Vectorized(ELEM_TYPE, n));
+        let o = kb.add_output(Type::Vectorized(ELEM_TYPE, 1));
+
+        let mut body = kb.new_block();
+        let acc = body.define(Type::Scalar(ELEM_TYPE), Expr::Immediate(0.));
+        let (i, lb) = body.new_range(0..n);
+        let v = lb.define(Type::Scalar(ELEM_TYPE), a.index(Expr::Load(i)));
+        lb.affect(
+            LValue::Reg(acc),
+            Expr::Add(Box::new(Expr::Load(acc)), Box::new(Expr::Load(v))),
+        );
+        body.affect(LValue::Index(o, Expr::Immediate(0.)), Expr::Load(acc));
+
+        kb.finalize(body)
+    }
+
+    #[test]
+    fn simple_reduce() {
+        let k = gen_simple_reduce(1024);
+        dbg!(k);
+    }
 
     #[test]
     fn simple_vectoradd() {

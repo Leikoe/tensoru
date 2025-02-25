@@ -111,7 +111,7 @@ impl CRender {
                 writeln!(
                     self.src,
                     "{} = {};",
-                    Self::render_register(decl.reg),
+                    Self::render_decl(decl),
                     Self::render_expr(expr)
                 )
                 .unwrap();
@@ -204,5 +204,11 @@ mod tests {
 
         let k = kb.finalize(body);
         println!("{}", CRender::render(&k));
+    }
+
+    #[test]
+    fn c_render_reduce() {
+        let k = crate::codegen::ir::tests::gen_simple_reduce(1024);
+        println!("{}", CRender::render(&k))
     }
 }
