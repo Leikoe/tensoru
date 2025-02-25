@@ -3,6 +3,7 @@ use tracing::debug;
 use super::Device;
 use crate::{buffer::Buffer, dtype::DType};
 use std::{any::type_name, fmt::Debug};
+pub mod render;
 
 #[derive(Copy, Clone)]
 pub struct CpuDevice;

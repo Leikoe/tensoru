@@ -1,2 +1,2 @@
 pub mod ir;
-mod render;
+pub mod render;
