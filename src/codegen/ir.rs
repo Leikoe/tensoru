@@ -1,4 +1,9 @@
-use std::{ops::Range, rc::Rc};
+use std::{
+    ops::{Index, Range},
+    rc::Rc,
+    slice::SliceIndex,
+    sync::{Arc, Mutex},
+};
 
 pub type RegId = usize;
 
@@ -35,6 +40,12 @@ pub struct Declaration {
     pub is_const: bool,
 }
 
+impl Declaration {
+    pub fn index(&self, index: Expr) -> Expr {
+        Expr::Index(*self, Box::new(index))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum LValue {
     Reg(Declaration),
@@ -43,87 +54,133 @@ pub enum LValue {
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
-    Range(Declaration, Range<usize>, Block),
+    Range(Declaration, Range<usize>, BlockBuilder),
     Define(Declaration, Expr),
     Affect(LValue, Expr),
 }
 
 #[derive(Debug, Clone)]
-pub struct Block(Vec<Instruction>);
-
-#[derive(Debug, Clone)]
-pub struct KernelBuilder {
-    pub name: String,
-    pub args: Vec<Declaration>,
-    pub body: Block,
-    reg_count: usize,
+pub struct BlockBuilder {
+    pub insts: Vec<Instruction>,
+    kernel_handle: Arc<Mutex<InnerKernelBuilder>>,
 }
 
-impl KernelBuilder {
-    fn new<N: ToString>(name: N) -> Self {
+impl BlockBuilder {
+    pub fn new(kernel_handle: Arc<Mutex<InnerKernelBuilder>>) -> Self {
         Self {
-            name: name.to_string(),
-            args: vec![],
-            body: Block(vec![]),
-            reg_count: 0,
+            insts: vec![],
+            kernel_handle,
         }
     }
 
-    fn add_input(&mut self, ty: Type) -> Declaration {
-        let decl = Declaration {
-            reg: self.args.len(),
-            ty,
-            is_const: true,
-        };
-        self.args.push(decl);
-        self.reg_count += 1;
-        decl
-    }
-
-    fn add_output(&mut self, ty: Type) -> Declaration {
-        let decl = Declaration {
-            reg: self.args.len(),
-            ty,
-            is_const: false,
-        };
-        self.args.push(decl);
-        self.reg_count += 1;
-        decl
-    }
-
-    fn new_range(&mut self) -> Declaration {
-        let decl = Declaration {
-            reg: self.reg_count,
-            ty: Type::Scalar(ScalarType::U32),
-            is_const: false,
-        };
-        self.reg_count += 1;
-        decl
-    }
-    fn commit_range(&mut self, index: Declaration, range: Range<usize>, block: Block) {
-        self.body.0.push(Instruction::Range(index, range, block));
-    }
-
-    fn new_reg(&mut self) -> usize {
-        let rid = self.reg_count;
-        self.reg_count += 1;
-        rid
-    }
-
-    fn new_def(&mut self, ty: Type, expr: Expr) -> (Declaration, Instruction) {
+    pub fn define(&mut self, ty: Type, expr: Expr) -> Declaration {
         let decl = Declaration {
             reg: self.new_reg(),
             ty,
             is_const: false,
         };
 
-        (decl.clone(), Instruction::Define(decl, expr))
+        self.insts.push(Instruction::Define(decl, expr));
+        decl
+    }
+
+    pub fn affect(&mut self, lvalue: LValue, expr: Expr) {
+        self.insts.push(Instruction::Affect(lvalue, expr));
+    }
+
+    fn new_reg(&mut self) -> usize {
+        self.kernel_handle.lock().unwrap().new_reg()
+    }
+
+    pub fn new_range(&mut self, range: Range<usize>) -> (Declaration, &mut BlockBuilder) {
+        let decl = Declaration {
+            reg: self.new_reg(),
+            ty: Type::Scalar(ScalarType::U32),
+            is_const: false,
+        };
+        self.insts.push(Instruction::Range(
+            decl,
+            range,
+            BlockBuilder::new(self.kernel_handle.clone()),
+        ));
+        if let Instruction::Range(_, _, b) = self.insts.last_mut().expect("we just pushed") {
+            (decl, b)
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct KernelBuilder(Arc<Mutex<InnerKernelBuilder>>);
+
+#[derive(Debug, Clone)]
+pub struct InnerKernelBuilder {
+    name: String,
+    args: Vec<Declaration>,
+    reg_count: usize,
+}
+
+impl InnerKernelBuilder {
+    fn new_reg(&mut self) -> usize {
+        let rid = self.reg_count;
+        self.reg_count += 1;
+        rid
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Kernel {
+    pub name: String,
+    pub args: Vec<Declaration>,
+    pub body: BlockBuilder,
+}
+
+impl KernelBuilder {
+    pub fn new<N: ToString>(name: N) -> Self {
+        Self(Arc::new(Mutex::new(InnerKernelBuilder {
+            name: name.to_string(),
+            args: vec![],
+            reg_count: 0,
+        })))
+    }
+
+    pub fn add_input(&mut self, ty: Type) -> Declaration {
+        let decl = Declaration {
+            reg: self.0.lock().unwrap().args.len(),
+            ty,
+            is_const: true,
+        };
+        self.0.lock().unwrap().args.push(decl);
+        self.0.lock().unwrap().reg_count += 1;
+        decl
+    }
+
+    pub fn add_output(&mut self, ty: Type) -> Declaration {
+        let decl = Declaration {
+            reg: self.0.lock().unwrap().args.len(),
+            ty,
+            is_const: false,
+        };
+        self.0.lock().unwrap().args.push(decl);
+        self.0.lock().unwrap().reg_count += 1;
+        decl
+    }
+
+    pub fn new_block(&mut self) -> BlockBuilder {
+        BlockBuilder::new(self.0.clone())
+    }
+
+    pub fn finalize(self, body: BlockBuilder) -> Kernel {
+        let name = self.0.lock().unwrap().name.clone();
+        let args = self.0.lock().unwrap().args.clone();
+        Kernel { name, args, body }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Block, Expr, Instruction, KernelBuilder, LValue, ScalarType, Type};
+    use super::{BlockBuilder, Expr, KernelBuilder, LValue, ScalarType, Type};
 
     #[test]
     fn simple_vectoradd() {
@@ -134,17 +191,18 @@ mod tests {
         let b = kb.add_input(Type::Vectorized(DT, N));
         let c = kb.add_output(Type::Vectorized(DT, N));
 
-        let i = kb.new_range();
-        let (va, va_inst) = kb.new_def(Type::Scalar(DT), Expr::Index(a, Box::new(Expr::Load(i))));
-        let (vb, vb_inst) = kb.new_def(Type::Scalar(DT), Expr::Index(b, Box::new(Expr::Load(i))));
-        let (vc, vc_inst) = kb.new_def(
+        let mut body = kb.new_block();
+
+        let (i, rblock) = body.new_range(0..N);
+        let va = rblock.define(Type::Scalar(DT), a.index(Expr::Load(i)));
+        let vb = rblock.define(Type::Scalar(DT), b.index(Expr::Load(i)));
+        let vc = rblock.define(
             Type::Scalar(DT),
             Expr::Add(Box::new(Expr::Load(va)), Box::new(Expr::Load(vb))),
         );
-        let store = Instruction::Affect(LValue::Index(c, Expr::Load(i)), Expr::Load(vc));
-        let loop_body = vec![va_inst, vb_inst, vc_inst, store];
-        kb.commit_range(i, 0..N, Block(loop_body));
+        rblock.affect(LValue::Index(c, Expr::Load(i)), Expr::Load(vc));
 
-        dbg!(kb);
+        let k = kb.finalize(body);
+        dbg!(k);
     }
 }
