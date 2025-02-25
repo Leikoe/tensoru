@@ -184,31 +184,13 @@ mod tests {
 
     #[test]
     fn vectoradd() {
-        let mut kb = KernelBuilder::new("vectoradd");
-        const N: usize = 1024;
-        const DT: ScalarType = ScalarType::F16;
-        let a = kb.add_input(Type::Vectorized(DT, N));
-        let b = kb.add_input(Type::Vectorized(DT, N));
-        let c = kb.add_output(Type::Vectorized(DT, N));
-
-        let mut body = kb.new_block();
-
-        let (i, rblock) = body.new_range(0..N);
-        let va = rblock.define(Type::Scalar(DT), a.index(Expr::Load(i)));
-        let vb = rblock.define(Type::Scalar(DT), b.index(Expr::Load(i)));
-        let vc = rblock.define(
-            Type::Scalar(DT),
-            Expr::Add(Box::new(Expr::Load(va)), Box::new(Expr::Load(vb))),
-        );
-        rblock.affect(LValue::Index(c, Expr::Load(i)), Expr::Load(vc));
-
-        let k = kb.finalize(body);
+        let k = crate::codegen::ir::samples::gen_vectoradd();
         println!("{}", CRender::render(&k));
     }
 
     #[test]
     fn c_render_reduce() {
-        let k = crate::codegen::ir::tests::gen_simple_reduce(1024);
+        let k = crate::codegen::ir::samples::gen_simple_reduce(1024);
         println!("{}", CRender::render(&k))
     }
 }
