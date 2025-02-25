@@ -7,7 +7,7 @@ use std::{
     any::type_name,
     fmt::Debug,
     ops::Deref,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{LazyLock, Mutex},
 };
 use tracing::debug;
 
