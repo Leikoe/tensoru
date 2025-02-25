@@ -1,27 +1,10 @@
 use crate::codegen::ir::{Declaration, Expr, Instruction, Kernel, LValue, RegId, ScalarType, Type};
-use crate::codegen::render::CStyleRenderer;
+use crate::codegen::render::cstyle::{type_to_ctype, CStyleRenderer};
 use std::fmt::Write;
 
 struct CRender {
     src: String,
     ident: usize,
-}
-
-const fn scalar_type_to_ctype(sty: ScalarType) -> &'static str {
-    match sty {
-        ScalarType::F16 => "half",
-        ScalarType::F32 => "float",
-        ScalarType::F64 => "double",
-        ScalarType::U32 => "unsigned int",
-        ScalarType::I32 => "int",
-    }
-}
-
-fn type_to_ctype(ty: Type) -> String {
-    match ty {
-        Type::Scalar(sty) => scalar_type_to_ctype(sty).to_owned(),
-        Type::Vectorized(sty, _size) => format!("*{}", scalar_type_to_ctype(sty)),
-    }
 }
 
 impl CRender {
